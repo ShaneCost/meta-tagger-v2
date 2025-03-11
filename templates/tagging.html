@@ -33,7 +33,7 @@
         <p>
             <div class="container">
                 <h3>Student Response</h3>
-                {% for sentence in current_response|slice:"0:-1" %}
+                {% for sentence in current_response|slice:"0:" %}
                     <!-- wrap each sentence in clickable div -->
                     <span id="sentence{{ forloop.counter }}" class="clickable-sentence">{{ sentence }}</span>
                 {% endfor %}

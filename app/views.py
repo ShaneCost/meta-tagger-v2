@@ -155,24 +155,34 @@ def report(request):
     data = StudentResponse.objects.all().prefetch_related('expert_responses')
     return render(request, 'report.html', {'data': data})
 
+import spacy
+
+import spacy
+
 def extract_clauses(text):
-    print(text)
     nlp = spacy.load("en_core_web_sm")
     doc = nlp(text)
-    clauses = []  # Use a set to ensure uniqueness
+    clauses = []
 
-    for sent in doc.sents:  # Iterate through sentences
+    for sent in doc.sents:  
         clause = []
         for token in sent:
-            clause.append(token.text)
-            if token.dep_ in {"cc", "mark", "punct"}:  # Coordinating conjunctions, markers, punctuation
-                clauses.append(" ".join(clause).strip())
-                clause = []  # Start a new clause
-        
-        if clause:
-            clauses.append("".join(clause).strip())  # Add remaining clause
+            if token.is_punct and clause:  
+                clause[-1] += token.text
+            else:
+                clause.append(token.text)
+            
+            if token.dep_ in {"cc", "mark", "punct"}:  
+                clauses.append(" ".join(clause).strip())  
+                clause = []  
 
-    return list(clauses)
+        if clause:  
+            clauses.append(" ".join(clause).strip()) 
+
+    print(clauses)
+    return clauses
+
+
 
     
 
