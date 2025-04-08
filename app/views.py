@@ -33,8 +33,14 @@ class TaggingPageView(TemplateView):
         # Retrieve the current user
         current_user = self.request.user
         # Retrieve the current_response associated with the current user and split it into an array of sentences
-        # current_response = current_user.current_response.response.split(".")
-        current_response = extract_clauses(current_user.current_response.response)
+        current_response = current_user.current_response.response.split(".")
+
+        for i, sentence in enumerate(current_response):
+            words = sentence.split()
+            if words:  # make sure the sentence isn't empty
+                words[-1] += "."
+            current_response[i] = words
+        
         context['current_response'] = current_response # Send array of sentences to html page
         context['id'] = current_user.current_response.id - 1 # This represent the number of responses the user has completed 
         return context
@@ -155,32 +161,32 @@ def report(request):
     data = StudentResponse.objects.all().prefetch_related('expert_responses')
     return render(request, 'report.html', {'data': data})
 
-import spacy
+# import spacy
 
-import spacy
+# import spacy
 
-def extract_clauses(text):
-    nlp = spacy.load("en_core_web_sm")
-    doc = nlp(text)
-    clauses = []
+# def extract_clauses(text):
+#     nlp = spacy.load("en_core_web_sm")
+#     doc = nlp(text)
+#     clauses = []
 
-    for sent in doc.sents:  
-        clause = []
-        for token in sent:
-            if token.is_punct and clause:  
-                clause[-1] += token.text
-            else:
-                clause.append(token.text)
+#     for sent in doc.sents:  
+#         clause = []
+#         for token in sent:
+#             if token.is_punct and clause:  
+#                 clause[-1] += token.text
+#             else:
+#                 clause.append(token.text)
             
-            if token.dep_ in {"cc", "mark", "punct"}:  
-                clauses.append(" ".join(clause).strip())  
-                clause = []  
+#             if token.dep_ in {"cc", "mark", "punct"}:  
+#                 clauses.append(" ".join(clause).strip())  
+#                 clause = []  
 
-        if clause:  
-            clauses.append(" ".join(clause).strip()) 
+#         if clause:  
+#             clauses.append(" ".join(clause).strip()) 
 
-    print(clauses)
-    return clauses
+#     print(clauses)
+#     return clauses
 
 
 

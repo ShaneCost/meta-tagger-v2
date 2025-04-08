@@ -35,13 +35,20 @@
                 <h3>Student Response</h3>
                 {% for sentence in current_response|slice:"0:" %}
                     <!-- wrap each sentence in clickable div -->
-                    <span id="sentence{{ forloop.counter }}" class="clickable-sentence">{{ sentence }}</span>
+                    <span id="sentence{{ forloop.counter }}">
+                    {% for word in sentence %}
+                        <span class="selectable-word clickable-sentence">{{ word }}</span>
+                    {% endfor %}
+                    </span>
                 {% endfor %}
             </div>
         </p>   
     </div>
     <!-- dynamically created forms stored here -->
     <div id="forms" class="forms"></div>
+
+    <!-- Toggle selection mode -->
+    <button id="start-selection" onclick="startNewSelection()">Make new selection</button>
 
     <button onclick="sendData()">Submit</button>
 
@@ -51,72 +58,132 @@
 {% endblock content %}
 
 <script>
-    // script used to change sentence color + sends sentence for create/delete forms
-    document.querySelectorAll('.clickable-sentence').forEach(item => {
-      item.addEventListener('click', event => {
-        if (item.style.color === 'blue') {
-          item.style.color = 'black';
-          removeForm(item.innerHTML);
+
+    let selectionIndex = 0;
+    let selecting = false;
+    let currentSelection = [];
+
+    function startNewSelection() {
+        if (selecting) { 
+            alert("Finalize selection on your previous form form before making a new selection.")
         } else {
-          item.style.color = 'blue';
-          showForm(item.innerHTML) // sends the sentence as a string
+            selecting = true;
+            currentSelection = [];
+
+            createForm(selectionIndex);
+            highlightWordsForSelection(selectionIndex);
+            
+            enableWordSelection();
+            selectionIndex++;
         }
-      });
-    });
+        
+    }
 
-    // script to create form
-    function showForm(sentence) {
-        let form = document.createElement('form');
-        form.setAttribute('class', 'form')
-        id = "form-" + sentence
-        form.setAttribute("id", id)
+    function highlightWordsForSelection(index) {
+        const wordElements = document.querySelectorAll('.selectable-word');
 
-        // puts sentence in form
-        div = document.createElement("div")
-        sent = document.createTextNode(sentence)
-        div.appendChild(sent)
-        div.setAttribute('name', 'sentence') 
-        form.appendChild(div)
+        wordElements.forEach(word => {
+            word.classList.remove('selected-word');
+            word.style.cursor = 'pointer';
+
+            // Only enable click if selection mode is on
+            if (selecting) {
+                word.classList.add('selection-mode');
+                word.addEventListener('click', wordClickHandler);
+            }
+        });
+    }
+
+    function wordClickHandler(e) {
+        const word = e.target;
+
+        if (word.classList.contains('finalized')) return;
+
+        const selected = word.classList.contains('selected-word');
+
+        if (!selected) {
+            word.classList.add('selected-word');
+            word.style.color = 'blue';
+            currentSelection.push(word.innerText);
+        } else {
+            word.classList.remove('selected-word');
+            word.style.color = 'black';
+            currentSelection = currentSelection.filter(w => w !== word.innerText);
+        }
+
+        updateWordDisplayInForm(currentSelection);
+    }
+
+    function updateWordDisplayInForm(words) {
+        const lastForm = document.querySelector(`#form-${selectionIndex - 1}`);
+        const sentenceDiv = lastForm.querySelector('.sentence-display');
+        sentenceDiv.textContent = words.join(" ") + (words.length > 0 ? " " : " ");
+    }
+
+    function createForm(index) {
+        const form = document.createElement('form');
+        form.className = 'form';
+        form.id = `form-${index}`;
+
+        const sentenceDiv = document.createElement('div');
+        sentenceDiv.name = 'sentence';
+        sentenceDiv.className = 'sentence-display';
+        sentenceDiv.textContent = " ";
+        sentenceDiv.classList.add('selection-mode');
+        form.appendChild(sentenceDiv);
 
         form.appendChild(document.createElement('br'));
-        form.appendChild(document.createElement('br')); 
+        form.appendChild(document.createElement('br'));
 
-        // Options for radio input
-        var knowledge = ['Declarative Knowledge', 'Procedural Knowledge', 'Unknown']
-        var confidence = ['Confident', 'Unconfident', 'N/A']
-        var strength = ['Strong', 'Mild']
+        const knowledge = ['Declarative Knowledge', 'Procedural Knowledge', 'Unknown'];
+        const confidence = ['Confident', 'Unconfident', 'N/A'];
+        const strength = ['Strong', 'Mild'];
 
-        createRadio(knowledge, form)
-        createRadio(confidence, form)
-        createRadio(strength, form)
-
-        // create text field for additional comments
-        let text = document.createElement('input')
-        text.setAttribute('type', 'text')
-        text.setAttribute('id', 'additional')
-        text.setAttribute('name', 'additional')
-
-        // create label
-        let label = document.createElement('label');
-        label.textContent = "Additional Comments:";
-        label.setAttribute('for', 'additional');
-        
-        // add text input + label to form
-        form.appendChild(label)
-        form.appendChild(text)
-
-        // wrap each form in a container
-        let container = document.createElement('div')
-        container.setAttribute('class', 'container')
-        container.setAttribute("id", id)
-        container.appendChild(form)
-        
-        // add form to document inside form div
-        document.getElementById('forms').appendChild(container);
+        createRadio(knowledge, form);
+        createRadio(confidence, form);
+        createRadio(strength, form);
 
         createStrengthOptions(form);
+
+        const label = document.createElement('label');
+        label.setAttribute('for', `additional-${index}`);
+        label.textContent = "Additional Comments:";
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.name = 'additional';
+        input.id = `additional-${index}`;
+
+        form.appendChild(label);
+        form.appendChild(input);
+
+        // Finalize button
+        const finalizeBtn = document.createElement('button');
+        finalizeBtn.type = 'button';
+        finalizeBtn.id = 'finalize-button'
+        finalizeBtn.textContent = 'Finalize Selection';
+        finalizeBtn.onclick = () => finalizeForm(index, form, finalizeBtn);
+        form.appendChild(finalizeBtn);
+
+        // Finalize button
+        const removeBttn = document.createElement('button');
+        removeBttn.type = 'button';
+        removeBttn.id = 'remove-button'
+        removeBttn.textContent = 'Delete Form';
+        removeBttn.onclick = () => removeForm(index);
+        form.appendChild(removeBttn);
+        
+        const container = document.createElement('div');
+        container.className = 'container';
+        container.id = 'form-container-' + index
+        container.appendChild(form);
+
+        
+        //document.getElementById('forms').appendChild(container);
+        
+        let formsContainer = document.getElementById('forms')
+        formsContainer.insertBefore(container, formsContainer.firstChild)
     }
-    
+
     // Script that creates radio input fields
     let s = 0
     function createRadio(option_array, form) {
@@ -186,11 +253,169 @@
     }
 
     // Script to remove form from document
-    function removeForm(sentence) {
-        let form = document.getElementById("form-" + sentence); // Retrieve form by ID
-        if (form) {
-            form.remove(); // Remove form
+    function removeForm(index) {
+        if (selecting) {
+            alert("Finalize selections on current form before deleting any forms.");
+        } else {
+            let container = document.getElementById("form-container-" + index); // Retrieve form by index
+            let form = document.getElementById("form-" + index)
+            if (form) {
+                // Get the sentence from the form
+                let sentence = form.querySelector('.sentence-display').textContent;
+
+                // Split the sentence into words
+                let wordsToRemoveFinalize = sentence.split(" ");
+
+                // Remove the form
+                container.remove();
+
+                // Loop through each word in the response and remove the "finalized" class
+                wordsToRemoveFinalize.forEach(word => {
+                    // Find all .selectable-word elements
+                    let wordElements = document.querySelectorAll('.selectable-word');
+                    wordElements.forEach(wordElement => {
+                        // Check if the word matches the text content of the word element
+                        if (wordElement.textContent.trim() === word && wordElement.classList.contains('finalized')) {
+                            wordElement.classList.remove('finalized');
+                            wordElement.style.color = 'black';
+                        }
+                    });
+                });
+
+                disableWordSelection();
+            }
         }
+    }
+
+    function finalizeForm(index, form, button) {
+        selecting = false;
+
+        // Lock current word selection
+        const wordElements = document.querySelectorAll('.selectable-word');
+        wordElements.forEach(word => {
+            word.removeEventListener('click', wordClickHandler);
+            word.classList.remove('selection-mode');
+            if (word.classList.contains('selected-word')) {
+                word.classList.remove('selected-word');
+                word.classList.add('finalized');
+            }
+        });
+
+        // Disable or hide finalize button
+        button.disabled = true;
+        button.style.display = "none";
+
+        // Set border to black
+        form = document.getElementById("form-" + index); // Retrieve form by index
+        let sentenceDiv = form.querySelector('.sentence-display'); // Select the div with 'sentence-display' class
+        if (sentenceDiv) {
+            sentenceDiv.classList.remove('selection-mode'); // Remove blue border
+            sentenceDiv.classList.add('finalized'); // Add black border
+        } else {
+            console.log("sentenceDiv not found!");
+        }
+
+        disableWordSelection();
+    }
+
+    function enableWordSelection() {
+        selecting = true;
+        const wordElements = document.querySelectorAll('.selectable-word');
+        wordElements.forEach(word => {
+            if (!word.classList.contains('finalized')) {
+                word.classList.add('selection-mode');
+                word.addEventListener('click', wordClickHandler);
+            }
+        });
+    }
+
+    function disableWordSelection() {
+        selecting = false;
+        const wordElements = document.querySelectorAll('.selectable-word');
+        wordElements.forEach(word => {
+            word.removeEventListener('click', wordClickHandler);
+            word.classList.remove('selection-mode');
+        });
+    }
+
+    // Script to send data to Django backend and save to database
+    function sendData() {
+        if(selecting) {
+            alert("Please finalize all selections before submitting forms.")
+        } else {
+            var data = []
+            let forms = document.querySelectorAll('#forms .form')
+            let allFieldsFilled = true; // Flag to track if all fields are filled
+
+            // Check if forms is None
+            if (forms.length === 0) {
+                let proceed = confirm("No phrases were selected. Select ‘Cancel’ if you want to go back and tag one or more phrases in the response. Select ‘OK’ if there are no phrases in the response to tag.");
+                if (!proceed) {
+                    return; // Exit the function if the user decides not to proceed
+                }
+            }
+
+            forms.forEach((form, index ) => {
+
+                // Get values from radio inputs
+                var knowledge = getRadioValue(form.querySelectorAll('[name="Declarative Knowledge,Procedural Knowledge,Unknown"]'))
+                var confidence = getRadioValue(form.querySelectorAll('[name="Confident,Unconfident,N/A"]'))
+                var strength = getRadioValue(form.querySelectorAll('[name="Strong,Mild"]'))
+
+                // Check if any radio button is not selected
+                if (!knowledge || !confidence) {
+                    allFieldsFilled = false;
+                    return; // Exit forEach loop early if any field is not filled
+                }
+
+                if(!strength) {
+                    strength = 'N/A'
+                }
+
+                // Create data object
+                const entry = {
+                    sentence: form.querySelector('[class="sentence-display"]').textContent,
+                    knowledge: knowledge,
+                    confidence: confidence,
+                    strength: strength,
+                    comments: form.querySelector('[name="additional"]').value
+                }
+                data.push(entry);
+            })
+
+            // If any field is not filled, display a popup alert
+            if (!allFieldsFilled) {
+                alert("Please fill out all fields before submitting. Comments are optional.");
+                return; // Exit the function early
+            }
+
+            const url = "{% url 'save_data' %}" // URL for django backend
+
+            // Post data to backend
+            const options = {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify(data)
+                };
+            
+                fetch(url, options)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Network response was not ok');
+                        }
+                        return response.json(); // Get return values from backend if request successful 
+                    })
+                    .then(data => {
+                        console.log('Response from server:', data);
+                        location.reload() // Reload page to load the users next student response 
+                    })
+                    .catch(error => {
+                        console.error('There was a problem with the fetch operation:', error);
+                    });
+            }     
     }
 
     // Script that retrieves the selected radio box from a radio input group
@@ -204,82 +429,6 @@
         }
     }
 
-    // Script to send data to Django backend and save to database
-    function sendData() {
-        var data = []
-        let forms = document.querySelectorAll('#forms .form')
-        let allFieldsFilled = true; // Flag to track if all fields are filled
-
-        // Check if forms is None
-        if (forms.length === 0) {
-            let proceed = confirm("No sentences were selected. Select ‘Cancel’ if you want to go back and tag one or more sentences in the response. Select ‘OK’ if there are no sentences in the response to tag.");
-            if (!proceed) {
-                return; // Exit the function if the user decides not to proceed
-            }
-        }
-
-        forms.forEach((form, index ) => {
-
-            // Get values from radio inputs
-            var knowledge = getRadioValue(form.querySelectorAll('[name="Declarative Knowledge,Procedural Knowledge,Unknown"]'))
-            var confidence = getRadioValue(form.querySelectorAll('[name="Confident,Unconfident,N/A"]'))
-            var strength = getRadioValue(form.querySelectorAll('[name="Strong,Mild"]'))
-
-            // Check if any radio button is not selected
-            if (!knowledge || !confidence) {
-                allFieldsFilled = false;
-                return; // Exit forEach loop early if any field is not filled
-            }
-
-            if(!strength) {
-                strength = 'N/A'
-            }
-
-            // Create data object
-            const entry = {
-                sentence: form.querySelector('[name="sentence"]').innerHTML,
-                knowledge: knowledge,
-                confidence: confidence,
-                strength: strength,
-                comments: form.querySelector('[name="additional"]').value
-            }
-            data.push(entry);
-        })
-
-        // If any field is not filled, display a popup alert
-        if (!allFieldsFilled) {
-            alert("Please fill out all fields before submitting.");
-            return; // Exit the function early
-        }
-
-        const url = "{% url 'save_data' %}" // URL for django backend
-
-        // Post data to backend
-        const options = {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': '{{ csrf_token }}'
-                },
-                body: JSON.stringify(data)
-            };
-        
-            fetch(url, options)
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('Network response was not ok');
-                    }
-                    return response.json(); // Get return values from backend if request successful 
-                })
-                .then(data => {
-                    console.log('Response from server:', data);
-                    location.reload() // Reload page to load the users next student response 
-                })
-                .catch(error => {
-                    console.error('There was a problem with the fetch operation:', error);
-                });
-    }
-
 </script>
 
 <style>
@@ -288,11 +437,6 @@
         margin-bottom: 20px;
     }
 
-    
-    .clickable-sentence:hover{
-        background-color: rgb(200, 200, 200);
-        cursor: pointer;
-    }
 
     progress {
         width: 100%;
@@ -317,6 +461,12 @@
         border-radius: 8px;
         box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
         display: block;
+        position: relative;
+    }
+
+    .sentence-display {
+        border-color: black;
+        border-width: 2px;
     }
 
     .review-button {
@@ -371,5 +521,71 @@
     #additional{
         width: 100%;
     }
-    
+
+    .selectable-word {
+        transition: background-color 0.2s ease;
+        font-weight: normal;
+        cursor: default;
+    }
+
+    /* Only show hover when selection mode is on */
+    .selectable-word.selection-mode:hover {
+        background-color: lightgray;
+        cursor: pointer;
+    }
+
+    .selectable-word.selected {
+        color: blue;
+        font-weight: bold;
+    }
+
+    .selectable-word.finalized {
+        color: red !important;
+        font-weight: bold;
+        cursor: default;
+    }
+
+    .selectable-word.finalized:hover {
+        background-color: transparent;
+        cursor: default;
+    }
+
+    #finalize-button {
+        position: absolute;
+        top: 0;
+        right: 175;
+        background-color: green;
+    }
+
+    #finalize-button:hover {
+        background-color: darkgreen;
+        cursor: pointer;
+    }
+
+    #remove-button {
+        position: absolute;
+        top: 0;
+        right: 13;
+        background-color: red;
+    }
+
+    #remove-button:hover {
+        background-color: darkred;
+        cursor: pointer;
+    }
+
+    .sentence-display.selection-mode {
+        border: 2px solid blue; /* Blue border when selection is in progress */
+    }
+
+    .sentence-display.finalized {
+        border: 2px solid black; /* Black border once finalized */
+    }
+
+    .sentence-display {
+        border: 2px solid black;
+        margin: 1px;
+        width: 76%;
+    }
+
 </style>
